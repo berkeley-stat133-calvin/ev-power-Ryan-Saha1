@@ -25,9 +25,8 @@ ev_registrations <- read_csv("ev-registrations-by-state-2023.csv")
 
 ```
 
-## **Part 1:** **Defining Research Question**
-
-Chosen Question: What is the relationship between the share of renewable and average energy price for each state?
+OVERVIEW:
+What is the relationship between the share of renewable and average energy price for each state?
 
 ## **Part 2: Data Preparation and Cleaning**
 
