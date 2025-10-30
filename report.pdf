@@ -1,0 +1,168 @@
+---
+title: "EV Power - Lab 4 Project Report"
+format: typst
+---
+
+# Example Solution 1
+
+## **Part 0: libraries**
+
+```{r}
+setwd("/Users/ryansaha/Documents/stat133/ev-power-Ryan-Saha1/data")
+library(tidyverse)
+library(stringr)
+library(readr)
+library(dplyr)
+
+#read all csv files
+renew_2021 <- read_csv("renew-use-2021.csv")
+renew_2022 <- read_csv("renew-use-2022.csv")
+renew_2023 <- read_csv("renew-use-2023.csv")
+
+energy_price <- read_csv("av-energy-price-2021-2023.csv")
+total_energy_2021 <- read_csv("total-use-2021.csv")
+ev_registrations <- read_csv("ev-registrations-by-state-2023.csv")
+
+```
+
+## **Part 1:** **Defining Research Question**
+
+Chosen Question: What is the relationship between the share of renewable and average energy price for each state?
+
+## **Part 2: Data Preparation and Cleaning**
+
+```{r}
+#clean renew_2021, renew_2022, renew_2023
+clean_renewable_data <- function(df, year) {
+  
+
+  names(df) <- tolower(names(df))
+  names(df) <- str_replace_all(names(df), "[ %/]", "_") 
+  
+
+  target_name <- paste0("renewable_use_", year)
+  
+
+  renewable_col_name_old <- names(df)[grep("renewable_use", names(df))][[1]] 
+  
+
+  if (is.na(renewable_col_name_old)) {
+
+    stop(paste0("Could not find the 'renewable_use' column for year ", year, ". Please check these actual names: ", paste(names(df), collapse = ", ")))
+  }
+
+  df <- df %>%
+    rename(!!sym(target_name) := !!sym(renewable_col_name_old))
+
+  df <- df %>%
+    mutate(
+      !!sym(target_name) := str_trim(as.character(!!sym(target_name))),
+      !!sym(target_name) := gsub("[^0-9.]", "", !!sym(target_name), perl=TRUE),
+      
+
+      !!sym(target_name) := as.numeric(!!sym(target_name))
+    )
+
+
+  state_col_name <- names(df)[grep("state", names(df))][[1]] 
+  
+  if (!is.na(state_col_name)) {
+    df <- df %>%
+      rename(state_temp = !!sym(state_col_name)) %>%
+      mutate(state = str_to_upper(str_trim(state_temp))) %>%
+      select(-state_temp)
+  }
+  
+  return(df)
+}
+renew_2021 <- clean_renewable_data(renew_2021, 2021)
+renew_2022 <- clean_renewable_data(renew_2022, 2022)
+renew_2023 <- clean_renewable_data(renew_2023, 2023)
+
+
+#clean av-energy-price-2021-2023
+ raw_lines <- read_lines(
+  "av-energy-price-2021-2023.csv", 
+  skip = 3 
+)
+
+
+energy_prices_clean <- tibble(raw_data = raw_lines) %>%
+  
+
+  separate(
+    col = raw_data, 
+    into = c("state", "price_2021", "price_2022", "price_2023"), 
+    sep = ",", 
+    extra = "merge", 
+    fill = "right"
+  ) %>%
+  
+
+  mutate(state = str_to_upper(str_trim(str_remove(state, "^,")))) %>%
+  
+  pivot_longer(
+    cols = starts_with("price_"),
+    names_to = "year",
+    values_to = "price_value"
+  ) %>%
+
+  mutate(
+    year = parse_number(year),
+    price_clean = str_trim(as.character(price_value)), 
+    
+    price_clean = gsub("[^0-9.]", "", price_clean, perl = TRUE),
+    
+    energy_price_mmbtu = as.numeric(price_clean)
+  ) %>%
+  
+  select(state, year, energy_price_mmbtu) %>%
+  arrange(state, year)
+   
+ 
+```
+
+## **Part 3: Joining / Pivoting Datasets for Analysis**
+
+```{r}
+renewable_master <- bind_rows(
+  renew_2021 %>% mutate(year = 2021),
+  renew_2022 %>% mutate(year = 2022),
+  renew_2023 %>% mutate(year = 2023)
+) %>%
+ 
+  filter(!is.na(renewable_use_2021) | !is.na(renewable_use_2022) | !is.na(renewable_use_2023))
+
+renewable_col_name <- names(renewable_master)[grep("renewable_use", names(renewable_master))][1]
+if (is.na(renewable_col_name)) {
+  stop("Could not find the 'renewable_use' column in the combined data. Please check the column name after cleaning.")
+}
+
+renewable_summary <- renewable_master %>%
+
+  select(state, year, energy_source, renewable_use = !!sym(renewable_col_name)) %>% 
+  
+  group_by(state, year) %>%
+  summarise(
+    total_renewable_use = sum(renewable_use, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+final_analysis_data <- renewable_summary %>%
+  inner_join(energy_prices_clean, by = c("state", "year")) %>%
+  
+  select(
+    state,
+    year,
+    total_renewable_use,
+    energy_price_mmbtu
+  )
+
+print(head(final_analysis_data))
+```
+
+## **Part 4: Mapping Visualization**
+
+```{r}
+
+```
